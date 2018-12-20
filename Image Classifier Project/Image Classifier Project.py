@@ -72,6 +72,9 @@ classes = [] ''' need to be implemented'''
 
 # TODO: Build and train your network
 model = models.vgg16(pretrained = True)
+# freeze all VGG parameters since we're only optimizing the target image
+for param in model.parameters():
+    param.requires_grad_(False)
 
 # Create classifier using Sequential with OrderedDict
 classifier = nn.Sequential(OrderedDict([
@@ -102,7 +105,16 @@ criterion = nn.CrossEntropyLoss()
 # specify optimizer
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
+# check if CUDA is available
+train_on_gpu = torch.cuda.is_available()
+if not train_on_gpu:
+    print('CUDA is not available.  Training on CPU ...')
+else:
+    print('CUDA is available!  Training on GPU ...')
 
+# move the model to GPU, if available
+device = torch.device("cuda" if train_on_gpu else "cpu")
+model.to(device)
 
 
 
