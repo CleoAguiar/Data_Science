@@ -26,11 +26,11 @@ valid_dir = data_dir + '/valid'
 
 # TODO: Define your transforms for the training and validation sets
 data_transforms = transforms.Compose([
-	transforms.RandomRotation(30),
-	transforms.RandomHorizontalFlip(p=0.5),
-	transforms.CenterCrop(10),
-	transforms.ToTensor(),
-	transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transforms.RandomRotation(30),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.CenterCrop(10),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
 # TODO: Load the datasets with ImageFolder
@@ -78,15 +78,15 @@ for param in model.parameters():
 
 # Create classifier using Sequential with OrderedDict
 classifier = nn.Sequential(OrderedDict([
-							('conv1', nn.Conv2d(3, 16, 3, padding=1)),
+                            ('conv1', nn.Conv2d(3, 16, 3, padding=1)),
                             ('relu', nn.ReLU()),
                             ('pool', nn.MaxPool2d(2, 2)),
-          					('conv2', nn.Conv2d(16, 32, 3, padding=1)),
-          					('relu', nn.ReLU()),
-          					('pool', nn.MaxPool2d(2, 2)),
-          					('conv3', nn.Conv2d(32, 64, 3, padding=1)),
-          					('relu', nn.ReLU()),
-          					('pool', nn.MaxPool2d(2, 2)),
+                            ('conv2', nn.Conv2d(16, 32, 3, padding=1)),
+                            ('relu', nn.ReLU()),
+                            ('pool', nn.MaxPool2d(2, 2)),
+                            ('conv3', nn.Conv2d(32, 64, 3, padding=1)),
+                            ('relu', nn.ReLU()),
+                            ('pool', nn.MaxPool2d(2, 2)),
 
                             ('dropout', nn.Dropout(0.25)),
                             ('fc1', nn.Linear(1024, 512)),
@@ -116,6 +116,33 @@ else:
 device = torch.device("cuda" if train_on_gpu else "cpu")
 model.to(device)
 
+# Train the Network
+# number of epochs to train the model
+n_epochs = 30
+
+for epoch in range(1, n_epochs+1):
+    # keep track of training and validation loss
+    train_loss = 0.0
+    valid_loss = 0.0
+
+    # Train the model
+    model.train()
+    for data, target in train_loader:
+        # move tensors to GPU if CUDA is available
+        if train_on_gpu:
+            data, target = data.cuda(), target.cuda()
+        # clear the gradients of all optimized variables
+        optimizer.zero_grad()
+        # forward pass: compute predicted outputs by passing inputs to the model
+        output = model(data)
+        # calculate the batch loss
+        loss = criterion(output, target)
+        # backward pass: compute gradient of the loss with respect to model parameters
+        loss.backward()
+        # perform a single optimization step (parameter update)
+        optimizer.step()
+        # update training loss
+        train_loss += loss.item()*data.size(0)
 
 
 # TODO: Save the checkpoint
