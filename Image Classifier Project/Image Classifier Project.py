@@ -14,6 +14,11 @@ from torchvision import datasets
 import torchvision.transforms as transforms
 from torch.utils.data.sampler import SubsetRandomSampler
 
+# Build and train
+from collections import OrderedDict
+from torch import nn
+import torch.optim as optim
+
 
 data_dir = '/flower_data'
 train_dir = data_dir + '/train'
@@ -25,7 +30,7 @@ data_transforms = transforms.Compose([
 	transforms.RandomHorizontalFlip(p=0.5),
 	transforms.CenterCrop(10),
 	transforms.ToTensor(),
-	transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+	transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
 # TODO: Load the datasets with ImageFolder
@@ -63,8 +68,41 @@ import json
 with open('cat_to_name.json', 'r') as f:
     cat_to_name = json.load(f)
 
+classes = [] ''' need to be implemented'''
 
 # TODO: Build and train your network
+model = models.vgg16(pretrained = True)
+
+# Create classifier using Sequential with OrderedDict
+classifier = nn.Sequential(OrderedDict([
+							('conv1', nn.Conv2d(3, 16, 3, padding=1)),
+                            ('relu', nn.ReLU()),
+                            ('pool', nn.MaxPool2d(2, 2)),
+          					('conv2', nn.Conv2d(16, 32, 3, padding=1)),
+          					('relu', nn.ReLU()),
+          					('pool', nn.MaxPool2d(2, 2)),
+          					('conv3', nn.Conv2d(32, 64, 3, padding=1)),
+          					('relu', nn.ReLU()),
+          					('pool', nn.MaxPool2d(2, 2)),
+
+                            ('dropout', nn.Dropout(0.25)),
+                            ('fc1', nn.Linear(1024, 512)),
+                            ('relu', nn.ReLU()),
+                            ('dropout', nn.Dropout(0.25)),
+                            ('fc2', nn.Linear(512, 102)),
+
+                            ('output', nn.LogSoftmax(dim=1))
+                             ]))
+
+model.classifier = classifier
+
+# specify loss function (categorical cross-entropy)
+criterion = nn.CrossEntropyLoss()
+
+# specify optimizer
+optimizer = optim.SGD(model.parameters(), lr=0.01)
+
+
 
 
 
