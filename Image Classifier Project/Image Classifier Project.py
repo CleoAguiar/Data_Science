@@ -68,7 +68,10 @@ import json
 with open('cat_to_name.json', 'r') as f:
     cat_to_name = json.load(f)
 
-classes = [] ''' need to be implemented'''
+classes = []
+for key in cat_to_name:
+    classes.append(cat_to_name[key])
+# classes
 
 # TODO: Build and train your network
 model = models.vgg16(pretrained = True)
