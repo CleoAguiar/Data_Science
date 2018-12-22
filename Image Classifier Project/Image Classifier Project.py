@@ -259,7 +259,8 @@ checkpoint = {'model_state': model.state_dict(),
               'best_train_loss': train_loss,
               # 'Best train accuracy': epoch_train_accuracy,
               'best_validation_loss': valid_loss,
-              # 'Best Validation accuracy': epoch_val_acc}
+              # 'Best Validation accuracy': epoch_val_acc
+              }
 torch.save(checkpoint, 'model_imgclassifier.pt')
 
 # TODO: Write a function that loads a checkpoint and rebuilds the model
@@ -272,3 +273,32 @@ image_datasets['train'] = load_state_dict(checkpoint['class_to_idx'])
 epoch = checkpoint['epochs']
 train_loss = checkpoint['best_train_loss']
 valid_loss = checkpoint['best_validation_loss']
+
+
+# TODO: Process a PIL image for use in a PyTorch model
+def process_image(image):
+    ''' Scales, crops, and normalizes a PIL image for a PyTorch model,
+        returns an Numpy array
+    '''
+    max_size = 256
+    shape=None
+
+    img_pil = Image.open(image).convert('RGB')
+
+    if max(image.size) > max_size:
+        size = max_size
+    else:
+        size = max(image.size)
+    
+    if shape is not None:
+        size = shape
+
+    img_transforms = transforms.Compose([transforms.Resize(size),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])])
+    
+
+    # discard the transparent, alpha channel (that's the :3) and add the batch dimension
+    image = in_transform(image)[:3,:,:].unsqueeze(0)
+
+    return image
