@@ -165,7 +165,7 @@ print(model)
 #                             ('output', nn.LogSoftmax(dim=1))
 #                              ]))
 
-# model.classifier = classifier
+model.classifier = classifier
 
 # specify loss function (categorical cross-entropy)
 criterion = nn.CrossEntropyLoss()
@@ -245,10 +245,30 @@ for epoch in range(1, n_epochs+1):
         print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
         valid_loss_min,
         valid_loss))
-        torch.save(model.state_dict(), 'model_cifar.pt')
+        torch.save(model.state_dict(), 'model_imgclassifier.pt')
         valid_loss_min = valid_loss
 
 # TODO: Save the checkpoint
+model.class_to_idx = image_datasets['train'].class_to_idx
 
+checkpoint = {'model_state': model.state_dict(),
+              'criterion_state': criterion.state_dict(),
+              'optimizer_state': optimizer.state_dict(),
+              'class_to_idx': model.class_to_idx,
+              'epochs': epochs,
+              'best_train_loss': train_loss,
+              # 'Best train accuracy': epoch_train_accuracy,
+              'best_validation_loss': valid_loss,
+              # 'Best Validation accuracy': epoch_val_acc}
+torch.save(checkpoint, 'model_imgclassifier.pt')
 
 # TODO: Write a function that loads a checkpoint and rebuilds the model
+checkpoint = torch.load('model_imgclassifier.pt')
+
+model.load_state_dict(checkpoint['model_state'])
+criterion.load_state_dict(checkpoint['criterion_state'])
+optimizer.load_state_dict(checkpoint['optimizer_state'])
+image_datasets['train'] = load_state_dict(checkpoint['class_to_idx'])
+epoch = checkpoint['epochs']
+train_loss = checkpoint['best_train_loss']
+valid_loss = checkpoint['best_validation_loss']
