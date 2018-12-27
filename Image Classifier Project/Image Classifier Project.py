@@ -338,6 +338,8 @@ def predict(image_path, model, topk=5):
     return probs, classes
 
 
+# Sanity Checking
+
 topk_probs, topk_classes = predict(image='sample_img.jpg', checkpoint='my_model.pt')
 label = topk_probs[0]
 prob = topk_classes[0]
@@ -350,3 +352,21 @@ print(f'\nTop K\n---------------------------------')
 
 for i in range(len(top_prob)):
     print(f"{cat_to_name[top_classes[i]]:<25} {top_prob[i]*100:.2f}%")
+
+
+# Another display an image with topk classes
+img = mpimg.imread('sample_img.jpg')
+
+f, axarr = plt.subplots(2,1)
+
+axarr[0].imshow(img)
+axarr[0].set_title('hard-leaved pocket orchid')
+
+probs, classes = predict(image='sample_img.jpg', checkpoint='my_model.pt')
+y_pos = np.arange(len(classes))
+
+axarr[1].barh(y_pos, probs, align='center', color='blue')
+axarr[1].set_yticks(y_pos)
+axarr[1].set_yticklabels(classes)
+axarr[1].invert_yaxis()  # labels read top-to-bottom
+_ = axarr[1].set_xlabel('Probs')
