@@ -19,6 +19,9 @@ from collections import OrderedDict
 from torch import nn
 import torch.optim as optim
 
+# Class Prediction
+import predict
+
 
 # image = mpimg.imread('flower_data/train/1/image_06734.jpg')
 # plt.imshow(image
@@ -323,3 +326,27 @@ def imshow(image, ax=None, title=None):
     ax.imshow(image)
     
     return ax
+
+def predict(image_path, model, topk=5):
+    ''' Predict the class (or classes) of an image using a trained deep learning model.
+    '''
+    
+    # TODO: Implement the code to predict the class from an image file
+    labels = cat_to_name.json
+    gpu_available = torch.cuda.is_available()
+    probs, classes = predict.predict(image=image_path, checkpoint=model, labels=labels, gpu=gpu_available)
+    return probs, classes
+
+
+topk_probs, topk_classes = predict(image='sample_img.jpg', checkpoint='my_model.pt')
+label = topk_probs[0]
+prob = topk_classes[0]
+
+print(f'Flower      : {cat_to_name[label]}')
+print(f'Label       : {label}')
+print(f'Probability : {prob*100:.2f}%')
+
+print(f'\nTop K\n---------------------------------')
+
+for i in range(len(top_prob)):
+    print(f"{cat_to_name[top_classes[i]]:<25} {top_prob[i]*100:.2f}%")
