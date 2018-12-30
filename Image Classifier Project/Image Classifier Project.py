@@ -19,6 +19,9 @@ from collections import OrderedDict
 from torch import nn
 import torch.optim as optim
 
+# Class Prediction
+import predict
+
 
 # image = mpimg.imread('flower_data/train/1/image_06734.jpg')
 # plt.imshow(image
@@ -173,7 +176,7 @@ print(model)
 #                             ('output', nn.LogSoftmax(dim=1))
 #                              ]))
 
-# model.classifier = classifier
+model.classifier = classifier
 
 # specify loss function (categorical cross-entropy)
 criterion = nn.CrossEntropyLoss()
@@ -253,10 +256,125 @@ for epoch in range(1, n_epochs+1):
         print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
         valid_loss_min,
         valid_loss))
-        torch.save(model.state_dict(), 'model_cifar.pt')
+        torch.save(model.state_dict(), 'model_imgclassifier.pt')
         valid_loss_min = valid_loss
 
 # TODO: Save the checkpoint
+model.class_to_idx = image_datasets['train'].class_to_idx
 
+checkpoint = {'model_state': model.state_dict(),
+              'criterion_state': criterion.state_dict(),
+              'optimizer_state': optimizer.state_dict(),
+              'class_to_idx': model.class_to_idx,
+              'epochs': epochs,
+              'best_train_loss': train_loss,
+              # 'Best train accuracy': epoch_train_accuracy,
+              'best_validation_loss': valid_loss,
+              # 'Best Validation accuracy': epoch_val_acc
+              }
+torch.save(checkpoint, 'model_imgclassifier.pt')
 
 # TODO: Write a function that loads a checkpoint and rebuilds the model
+checkpoint = torch.load('model_imgclassifier.pt')
+
+model.load_state_dict(checkpoint['model_state'])
+criterion.load_state_dict(checkpoint['criterion_state'])
+optimizer.load_state_dict(checkpoint['optimizer_state'])
+image_datasets['train'] = load_state_dict(checkpoint['class_to_idx'])
+epoch = checkpoint['epochs']
+train_loss = checkpoint['best_train_loss']
+valid_loss = checkpoint['best_validation_loss']
+
+
+# TODO: Process a PIL image for use in a PyTorch model
+def process_image(image):
+    ''' Scales, crops, and normalizes a PIL image for a PyTorch model,
+        returns an Numpy array
+    '''
+    max_size = 256
+    shape=None
+
+    img_pil = Image.open(image).convert('RGB')
+
+    if max(image.size) > max_size:
+        size = max_size
+    else:
+        size = max(image.size)
+    
+    if shape is not None:
+        size = shape
+
+    img_transforms = transforms.Compose([transforms.Resize(size),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])])
+    
+
+    # discard the transparent, alpha channel (that's the :3) and add the batch dimension
+    image = in_transform(image)[:3,:,:].unsqueeze(0)
+
+    return image
+
+def imshow(image, ax=None, title=None):
+    """Imshow for Tensor."""
+    if ax is None:
+        fig, ax = plt.subplots()
+    
+    # PyTorch tensors assume the color channel is the first dimension
+    # but matplotlib assumes is the third dimension
+    image = image.numpy().transpose((1, 2, 0))
+    
+    # Undo preprocessing
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    image = std * image + mean
+    
+    # Image needs to be clipped between 0 and 1 or it looks like noise when displayed
+    image = np.clip(image, 0, 1)
+    
+    ax.imshow(image)
+    
+    return ax
+
+def predict(image_path, model, topk=5):
+    ''' Predict the class (or classes) of an image using a trained deep learning model.
+    '''
+    
+    # TODO: Implement the code to predict the class from an image file
+    labels = cat_to_name.json
+    gpu_available = torch.cuda.is_available()
+    probs, classes = predict.predict(image=image_path, checkpoint=model, labels=labels, gpu=gpu_available)
+    return probs, classes
+
+
+# Sanity Checking
+
+topk_probs, topk_classes = predict(image='sample_img.jpg', checkpoint='my_model.pt')
+label = topk_probs[0]
+prob = topk_classes[0]
+
+print(f'Flower      : {cat_to_name[label]}')
+print(f'Label       : {label}')
+print(f'Probability : {prob*100:.2f}%')
+
+print(f'\nTop K\n---------------------------------')
+
+for i in range(len(top_prob)):
+    print(f"{cat_to_name[top_classes[i]]:<25} {top_prob[i]*100:.2f}%")
+
+
+# Another display an image with topk classes
+img = mpimg.imread('sample_img.jpg')
+
+f, axarr = plt.subplots(2,1)
+
+axarr[0].imshow(img)
+axarr[0].set_title('hard-leaved pocket orchid')
+
+probs, classes = predict(image='sample_img.jpg', checkpoint='my_model.pt')
+y_pos = np.arange(len(classes))
+
+axarr[1].barh(y_pos, probs, align='center', color='blue')
+axarr[1].set_yticks(y_pos)
+axarr[1].set_yticklabels(classes)
+axarr[1].invert_yaxis()  # labels read top-to-bottom
+_ = axarr[1].set_xlabel('Probs')
