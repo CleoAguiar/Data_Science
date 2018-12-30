@@ -19,10 +19,6 @@ from collections import OrderedDict
 from torch import nn
 import torch.optim as optim
 
-# Class Prediction
-import predict
-
-
 # image = mpimg.imread('flower_data/train/1/image_06734.jpg')
 # plt.imshow(image
 
@@ -56,7 +52,7 @@ image_datasets = {
 # number of subprocesses to use for data loading
 num_workers = 0
 # how many samples per batch to load
-batch_size = 20
+batch_size = 30
 # percentage of training set to use as validation
 valid_size = 0.2
 
@@ -80,9 +76,9 @@ dataloaders = {
 
 # print(valid_loader.dataset)
 # helper function to un-normalize and display an image
-def imshow(img):
-    img = img / 2 + 0.5  # unnormalize
-    plt.imshow(np.transpose(img, (1, 2, 0)))  # convert from Tensor image
+# def imshow(img):
+#     img = img / 2 + 0.5  # unnormalize
+#     plt.imshow(np.transpose(img, (1, 2, 0)))  # convert from Tensor image
 
 import json
 
@@ -91,18 +87,18 @@ with open('cat_to_name.json', 'r') as f:
 
 classes = list(cat_to_name.values())
 
-# obtain one batch of training images
-dataiter = iter(dataloaders['train'])
-images, labels = dataiter.next()
-images = images.numpy() # convert images to numpy for display
+# # obtain one batch of training images
+# dataiter = iter(dataloaders['train'])
+# images, labels = dataiter.next()
+# images = images.numpy() # convert images to numpy for display
 
-# plot the images in the batch, along with the corresponding labels
-fig = plt.figure(figsize=(25, 4))
-# display 20 images
-for idx in np.arange(20):
-    ax = fig.add_subplot(2, 20/2, idx+1, xticks=[], yticks=[])
-    imshow(images[idx])
-    ax.set_title(classes[labels[idx]])
+# # plot the images in the batch, along with the corresponding labels
+# fig = plt.figure(figsize=(25, 4))
+# # display 20 images
+# for idx in np.arange(20):
+#     ax = fig.add_subplot(2, 20/2, idx+1, xticks=[], yticks=[])
+#     imshow(images[idx])
+#     ax.set_title(classes[labels[idx]])
 
 # TODO: Build and train your network
 model = models.vgg16(pretrained = True)
@@ -155,28 +151,7 @@ class Net(nn.Module):
 model = Net()
 print(model)
 
-# Create classifier using Sequential with OrderedDict
-# classifier = nn.Sequential(OrderedDict([
-#                             ('conv1', nn.Conv2d(3, 16, 3, padding=1)),
-#                             ('relu', nn.ReLU()),
-#                             ('pool', nn.MaxPool2d(2, 2)),
-#                             ('conv2', nn.Conv2d(16, 32, 3, padding=1)),
-#                             ('relu', nn.ReLU()),
-#                             ('pool', nn.MaxPool2d(2, 2)),
-#                             ('conv3', nn.Conv2d(32, 64, 3, padding=1)),
-#                             ('relu', nn.ReLU()),
-#                             ('pool', nn.MaxPool2d(2, 2)),
-
-#                             ('dropout', nn.Dropout(0.25)),
-#                             ('fc1', nn.Linear(1024, 512)),
-#                             ('relu', nn.ReLU()),
-#                             ('dropout', nn.Dropout(0.25)),
-#                             ('fc2', nn.Linear(512, 102)),
-
-#                             ('output', nn.LogSoftmax(dim=1))
-#                              ]))
-
-model.classifier = classifier
+# model.classifier = classifier
 
 # specify loss function (categorical cross-entropy)
 criterion = nn.CrossEntropyLoss()
@@ -193,7 +168,7 @@ else:
 
 # move the model to GPU, if available
 device = torch.device("cuda" if train_on_gpu else "cpu")
-model.to(device)
+# model.to(device)
 
 ## Train the Network
 # number of epochs to train the model
@@ -211,7 +186,7 @@ for epoch in range(1, n_epochs+1):
     # train the model #
     ###################
     model.train()
-    for data, target in train_loader:
+    for data, target in dataloaders['train']:
         # move tensors to GPU if CUDA is available
         if train_on_gpu:
             data, target = data.cuda(), target.cuda()
@@ -232,7 +207,7 @@ for epoch in range(1, n_epochs+1):
     # validate the model #
     ######################
     model.eval()
-    for data, target in valid_loader:
+    for data, target in dataloaders['valid']:
         # move tensors to GPU if CUDA is available
         if train_on_gpu:
             data, target = data.cuda(), target.cuda()
@@ -244,35 +219,59 @@ for epoch in range(1, n_epochs+1):
         valid_loss += loss.item()*data.size(0)
     
     # calculate average losses
-    train_loss = train_loss/len(train_loader.dataset)
-    valid_loss = valid_loss/len(valid_loader.dataset)
+    train_loss = train_loss/len(dataloaders['train'].dataset)
+    valid_loss = valid_loss/len(dataloaders['valid'].dataset)
         
     # print training/validation statistics 
     print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format(
         epoch, train_loss, valid_loss))
     
+    # TODO: Save the checkpoint 
     # save model if validation loss has decreased
     if valid_loss <= valid_loss_min:
         print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
         valid_loss_min,
         valid_loss))
-        torch.save(model.state_dict(), 'model_imgclassifier.pt')
-        valid_loss_min = valid_loss
+        
+#         model.class_to_idx = image_datasets['train'].class_to_idx
+#         checkpoint = {
+#             'class_to_idx' : model.class_to_idx,
+#             'state_dict': model.state_dict(),
+#         }       
+#         torch.save(checkpoint, 'model_imgclassifier.pt')
+        
+        model.class_to_idx = image_datasets['train'].class_to_idx
 
-# TODO: Save the checkpoint
-model.class_to_idx = image_datasets['train'].class_to_idx
-
-checkpoint = {'model_state': model.state_dict(),
+        checkpoint = {'model_state': model.state_dict(),
               'criterion_state': criterion.state_dict(),
               'optimizer_state': optimizer.state_dict(),
               'class_to_idx': model.class_to_idx,
-              'epochs': epochs,
+              'epochs': n_epochs,
               'best_train_loss': train_loss,
               # 'Best train accuracy': epoch_train_accuracy,
               'best_validation_loss': valid_loss,
               # 'Best Validation accuracy': epoch_val_acc
               }
-torch.save(checkpoint, 'model_imgclassifier.pt')
+        torch.save(checkpoint, 'model_imgclassifier.pt')
+        
+        
+        valid_loss_min = valid_loss
+
+# TODO: Save the checkpoint
+# model.class_to_idx = image_datasets['train'].class_to_idx
+
+# checkpoint = {'model_state': model.state_dict(),
+#               'criterion_state': criterion.state_dict(),
+#               'optimizer_state': optimizer.state_dict(),
+#               'class_to_idx': model.class_to_idx,
+#               'epochs': n_epochs,
+#               'best_train_loss': train_loss,
+#               # 'Best train accuracy': epoch_train_accuracy,
+#               'best_validation_loss': valid_loss,
+#               # 'Best Validation accuracy': epoch_val_acc
+#               }
+# torch.save(checkpoint, 'model_imgclassifier.pt')
+
 
 # TODO: Write a function that loads a checkpoint and rebuilds the model
 checkpoint = torch.load('model_imgclassifier.pt')
@@ -280,8 +279,8 @@ checkpoint = torch.load('model_imgclassifier.pt')
 model.load_state_dict(checkpoint['model_state'])
 criterion.load_state_dict(checkpoint['criterion_state'])
 optimizer.load_state_dict(checkpoint['optimizer_state'])
-image_datasets['train'] = load_state_dict(checkpoint['class_to_idx'])
-epoch = checkpoint['epochs']
+model.class_to_idx = checkpoint['class_to_idx']
+n_epochs = checkpoint['epochs']
 train_loss = checkpoint['best_train_loss']
 valid_loss = checkpoint['best_validation_loss']
 
@@ -292,10 +291,9 @@ def process_image(image):
         returns an Numpy array
     '''
     max_size = 256
-    shape=None
-
-    img_pil = Image.open(image).convert('RGB')
-
+    image = Image.open(img_path).convert('RGB')
+    
+    # large images will slow down processing
     if max(image.size) > max_size:
         size = max_size
     else:
@@ -303,16 +301,17 @@ def process_image(image):
     
     if shape is not None:
         size = shape
-
-    img_transforms = transforms.Compose([transforms.Resize(size),
-                                        transforms.ToTensor(),
-                                        transforms.Normalize(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])])
-    
+        
+    in_transform = transforms.Compose([
+                        transforms.Resize(size),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.485, 0.456, 0.406), 
+                                             (0.229, 0.224, 0.225))])
 
     # discard the transparent, alpha channel (that's the :3) and add the batch dimension
     image = in_transform(image)[:3,:,:].unsqueeze(0)
-
-    return image
+    
+    return img
 
 def imshow(image, ax=None, title=None):
     """Imshow for Tensor."""
