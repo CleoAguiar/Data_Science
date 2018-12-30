@@ -28,28 +28,37 @@ train_dir = data_dir + '/train'
 valid_dir = data_dir + '/valid'
 
 # TODO: Define your transforms for the training and validation sets
-data_transforms = transforms.Compose([transforms.RandomResizedCrop(224),
-#                                       transforms.RandomRotation(30),
-                                      transforms.RandomHorizontalFlip(p=0.5),
-                                     transforms.CenterCrop(32),
-                                      transforms.ToTensor(),
-                                      transforms.Normalize(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])])
+data_transforms = {
+    'train': transforms.Compose([transforms.RandomResizedCrop(224),
+                                 transforms.RandomRotation(30),
+                                 transforms.RandomHorizontalFlip(p=0.5),
+                                 transforms.CenterCrop(32),
+                                 transforms.ToTensor(),
+                                 transforms.Normalize(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])]),
+    
+    'valid': transforms.Compose([transforms.RandomResizedCrop(224),
+                                 transforms.CenterCrop(32),
+                                 transforms.ToTensor(),
+                                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+}
 
 # TODO: Load the datasets with ImageFolder
-train_data = datasets.ImageFolder(train_dir,transform=data_transforms)
-test_data = datasets.ImageFolder(valid_dir,transform=data_transforms)
+image_datasets = {
+    'train' : datasets.ImageFolder(train_dir,transform=data_transforms['train']),
+    'valid' : datasets.ImageFolder(valid_dir,transform=data_transforms['valid'])
+}
 
 # TODO: Using the image datasets and the trainforms, define the dataloaders
 
 # number of subprocesses to use for data loading
 num_workers = 0
 # how many samples per batch to load
-batch_size = 980
+batch_size = 20
 # percentage of training set to use as validation
 valid_size = 0.2
 
 # obtain training indices that will be used for validation
-num_train = len(train_data)
+num_train = len(image_datasets['train'])
 indices = list(range(num_train))
 np.random.shuffle(indices)
 split = int(np.floor(valid_size * num_train))
@@ -60,9 +69,11 @@ train_sampler = SubsetRandomSampler(train_idx)
 valid_sampler = SubsetRandomSampler(valid_idx)
 
 # prepare data loaders (combine dataset and sampler)
-train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, sampler=train_sampler, num_workers=num_workers)
-valid_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, sampler=valid_sampler, num_workers=num_workers)
-test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, num_workers=num_workers)
+dataloaders = {
+        'train' : torch.utils.data.DataLoader(image_datasets['train'], batch_size=batch_size, sampler=train_sampler, num_workers=num_workers),
+        'valid' : torch.utils.data.DataLoader(image_datasets['train'], batch_size=batch_size, sampler=valid_sampler, num_workers=num_workers),
+        'test' : torch.utils.data.DataLoader(image_datasets['valid'], batch_size=batch_size, num_workers=num_workers)
+}
 
 # print(valid_loader.dataset)
 # helper function to un-normalize and display an image
@@ -75,13 +86,10 @@ import json
 with open('cat_to_name.json', 'r') as f:
     cat_to_name = json.load(f)
 
-classes = []
-for key in cat_to_name:
-    classes.append(cat_to_name[key])
-# classes
+classes = list(cat_to_name.values())
 
 # obtain one batch of training images
-dataiter = iter(train_loader)
+dataiter = iter(dataloaders['train'])
 images, labels = dataiter.next()
 images = images.numpy() # convert images to numpy for display
 
