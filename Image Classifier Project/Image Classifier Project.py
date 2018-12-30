@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import torch
-import torch.optim as optim
 from torchvision import transforms, models
 
 # Load the Data
@@ -19,23 +18,30 @@ from collections import OrderedDict
 from torch import nn
 import torch.optim as optim
 
-# image = mpimg.imread('flower_data/train/1/image_06734.jpg')
-# plt.imshow(image
+# Sanity Checking
+import seaborn as sns
 
+
+# Load the data
 data_dir = './flower_data'
 train_dir = data_dir + '/train'
 valid_dir = data_dir + '/valid'
 
 # TODO: Define your transforms for the training and validation sets
 data_transforms = {
-    'train': transforms.Compose([transforms.RandomResizedCrop(224),
-                                 transforms.RandomRotation(30),
+    'train': transforms.Compose([transforms.RandomRotation(30),
+                                 transforms.RandomResizedCrop(224),
+#                                  transforms.CenterCrop(32),
                                  transforms.RandomHorizontalFlip(p=0.5),
-                                 transforms.CenterCrop(32),
                                  transforms.ToTensor(),
                                  transforms.Normalize(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])]),
     
     'valid': transforms.Compose([transforms.RandomResizedCrop(224),
+                                 transforms.CenterCrop(32),
+                                 transforms.ToTensor(),
+                                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])]),
+    
+    'test': transforms.Compose([transforms.RandomResizedCrop(224),
                                  transforms.CenterCrop(32),
                                  transforms.ToTensor(),
                                  transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
@@ -74,84 +80,30 @@ dataloaders = {
         'test' : torch.utils.data.DataLoader(image_datasets['valid'], batch_size=batch_size, num_workers=num_workers)
 }
 
-# print(valid_loader.dataset)
-# helper function to un-normalize and display an image
-# def imshow(img):
-#     img = img / 2 + 0.5  # unnormalize
-#     plt.imshow(np.transpose(img, (1, 2, 0)))  # convert from Tensor image
-
+# Label mapping
 import json
 
 with open('cat_to_name.json', 'r') as f:
     cat_to_name = json.load(f)
 
-classes = list(cat_to_name.values())
-
-# # obtain one batch of training images
-# dataiter = iter(dataloaders['train'])
-# images, labels = dataiter.next()
-# images = images.numpy() # convert images to numpy for display
-
-# # plot the images in the batch, along with the corresponding labels
-# fig = plt.figure(figsize=(25, 4))
-# # display 20 images
-# for idx in np.arange(20):
-#     ax = fig.add_subplot(2, 20/2, idx+1, xticks=[], yticks=[])
-#     imshow(images[idx])
-#     ax.set_title(classes[labels[idx]])
-
+# Building and training the classifier
 # TODO: Build and train your network
-model = models.vgg16(pretrained = True)
+model = models.vgg19(pretrained = True)
 # freeze all VGG parameters since we're only optimizing the target image
 for param in model.parameters():
     param.requires_grad_(False)
+model.classifier
 
-# Create CNN model
-import torch.nn as nn
-import torch.nn.functional as F
+# Create classifier using Sequential with OrderedDict
+classifier = nn.Sequential(OrderedDict([
+                          ('fc1', nn.Linear(25088, 1024)),
+                          ('relu', nn.ReLU()),
+                          ('fc2', nn.Linear(1024, 102)),
+                          ('output', nn.LogSoftmax(dim=1))
+                          ]))
 
-# define the CNN architecture
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        # convolutional layer (sees 32x32x3 image tensor)
-        self.conv1 = nn.Conv2d(3, 16, 3, padding=1)
-        # convolutional layer (sees 16x16x16 tensor)
-        self.conv2 = nn.Conv2d(16, 32, 3, padding=1)
-        # convolutional layer (sees 8x8x32 tensor)
-        self.conv3 = nn.Conv2d(32, 64, 3, padding=1)
-        # max pooling layer
-        self.pool = nn.MaxPool2d(2, 2)
-        # linear layer (1024 -> 500)
-        self.fc1 = nn.Linear(64 * 4 * 4, 500)
-        # linear layer (500 -> 10)
-        self.fc2 = nn.Linear(500, 10)
-        # dropout layer (p=0.25)
-        self.dropout = nn.Dropout(0.25)
-
-    def forward(self, x):
-        # add sequence of convolutional and max pooling layers
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x)))
-        # flatten image input
-        x = x.view(-1, 64 * 4 * 4)
-        
-        # add dropout layer
-        x = self.dropout(x)
-        # add 1st hidden layer, with relu activation function
-        x = F.relu(self.fc1(x))
-        # add dropout layer
-        x = self.dropout(x)
-        # add 2nd hidden layer, with relu activation function
-        x = self.fc2(x)
-        return x
-
-# create a complete CNN
-model = Net()
-print(model)
-
-# model.classifier = classifier
+model.classifier = classifier
+model.classifier
 
 # specify loss function (categorical cross-entropy)
 criterion = nn.CrossEntropyLoss()
@@ -165,6 +117,7 @@ if not train_on_gpu:
     print('CUDA is not available.  Training on CPU ...')
 else:
     print('CUDA is available!  Training on GPU ...')
+    model.cuda()
 
 # move the model to GPU, if available
 device = torch.device("cuda" if train_on_gpu else "cpu")
@@ -172,7 +125,7 @@ device = torch.device("cuda" if train_on_gpu else "cpu")
 
 ## Train the Network
 # number of epochs to train the model
-n_epochs = 30
+n_epochs = 2 #30
 
 valid_loss_min = np.Inf # track change in validation loss
 
@@ -180,12 +133,15 @@ for epoch in range(1, n_epochs+1):
 
     # keep track of training and validation loss
     train_loss = 0.0
+    train_acc = 0.0
     valid_loss = 0.0
+    valid_acc = 0.0
     
     ###################
     # train the model #
     ###################
     model.train()
+    train_correct = 0.0
     for data, target in dataloaders['train']:
         # move tensors to GPU if CUDA is available
         if train_on_gpu:
@@ -194,6 +150,7 @@ for epoch in range(1, n_epochs+1):
         optimizer.zero_grad()
         # forward pass: compute predicted outputs by passing inputs to the model
         output = model(data)
+        _, preds = torch.max(output,1)
         # calculate the batch loss
         loss = criterion(output, target)
         # backward pass: compute gradient of the loss with respect to model parameters
@@ -202,11 +159,13 @@ for epoch in range(1, n_epochs+1):
         optimizer.step()
         # update training loss
         train_loss += loss.item()*data.size(0)
+        train_correct += torch.sum(preds == target.data)
         
     ######################    
     # validate the model #
     ######################
     model.eval()
+    validate_correct = 0.0
     for data, target in dataloaders['valid']:
         # move tensors to GPU if CUDA is available
         if train_on_gpu:
@@ -215,16 +174,20 @@ for epoch in range(1, n_epochs+1):
         output = model(data)
         # calculate the batch loss
         loss = criterion(output, target)
+        equal = (output.max(dim=1)[1] == target.data)
         # update average validation loss 
         valid_loss += loss.item()*data.size(0)
+        validate_correct += torch.sum(equal)#type(torch.FloatTensor)
     
     # calculate average losses
     train_loss = train_loss/len(dataloaders['train'].dataset)
+    train_acc = train_correct.double()/len(dataloaders['train'].dataset)
     valid_loss = valid_loss/len(dataloaders['valid'].dataset)
+    valid_acc = validate_correct.double()/len(dataloaders['valid'].dataset)
         
     # print training/validation statistics 
-    print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format(
-        epoch, train_loss, valid_loss))
+    print('Epoch: {} \tTraining Loss: {:.6f} \tAcc: {:.6f} \n\t\tValidation Loss: {:.6f} \tAcc: {:.6f}'.format(
+        epoch, train_loss, train_acc, valid_loss, valid_acc))
     
     # TODO: Save the checkpoint 
     # save model if validation loss has decreased
@@ -233,16 +196,10 @@ for epoch in range(1, n_epochs+1):
         valid_loss_min,
         valid_loss))
         
-#         model.class_to_idx = image_datasets['train'].class_to_idx
-#         checkpoint = {
-#             'class_to_idx' : model.class_to_idx,
-#             'state_dict': model.state_dict(),
-#         }       
-#         torch.save(checkpoint, 'model_imgclassifier.pt')
-        
         model.class_to_idx = image_datasets['train'].class_to_idx
 
-        checkpoint = {'model_state': model.state_dict(),
+        checkpoint = {'arch': 'vgg19',
+              'model_state': model.state_dict(),
               'criterion_state': criterion.state_dict(),
               'optimizer_state': optimizer.state_dict(),
               'class_to_idx': model.class_to_idx,
@@ -257,59 +214,73 @@ for epoch in range(1, n_epochs+1):
         
         valid_loss_min = valid_loss
 
-# TODO: Save the checkpoint
-# model.class_to_idx = image_datasets['train'].class_to_idx
+# Save the checkpoint
+# Done above
 
-# checkpoint = {'model_state': model.state_dict(),
-#               'criterion_state': criterion.state_dict(),
-#               'optimizer_state': optimizer.state_dict(),
-#               'class_to_idx': model.class_to_idx,
-#               'epochs': n_epochs,
-#               'best_train_loss': train_loss,
-#               # 'Best train accuracy': epoch_train_accuracy,
-#               'best_validation_loss': valid_loss,
-#               # 'Best Validation accuracy': epoch_val_acc
-#               }
-# torch.save(checkpoint, 'model_imgclassifier.pt')
-
-
+# Loading the checkpoint
 # TODO: Write a function that loads a checkpoint and rebuilds the model
-checkpoint = torch.load('model_imgclassifier.pt')
 
-model.load_state_dict(checkpoint['model_state'])
-criterion.load_state_dict(checkpoint['criterion_state'])
-optimizer.load_state_dict(checkpoint['optimizer_state'])
-model.class_to_idx = checkpoint['class_to_idx']
-n_epochs = checkpoint['epochs']
-train_loss = checkpoint['best_train_loss']
-valid_loss = checkpoint['best_validation_loss']
+def load_model(checkpoint_path):
+    checkpoint = torch.load('model_imgclassifier.pt')
+    
+    if checkpoint['arch'] == 'vgg19':
+        model = models.vgg19(pretrained=True)
+        for param in model.parameters():
+            param.requires_grad_(False) 
+        
+        classifier = nn.Sequential(OrderedDict([
+                          ('fc1', nn.Linear(25088, 1024)),
+                          ('relu', nn.ReLU()),
+                          ('fc2', nn.Linear(1024, 102)),
+                          ('output', nn.LogSoftmax(dim=1))
+                          ]))
+        
+        model.classifier = classifier
+
+        model.load_state_dict(checkpoint['model_state'])
+        criterion.load_state_dict(checkpoint['criterion_state'])
+        optimizer.load_state_dict(checkpoint['optimizer_state'])
+        model.class_to_idx = checkpoint['class_to_idx']
+        n_epochs = checkpoint['epochs']
+        train_loss = checkpoint['best_train_loss']
+        valid_loss = checkpoint['best_validation_loss']
+    
+    return model
 
 
+model_load = load_model('model_imgclassifier.pt')
+
+# Image Preprocessing
 # TODO: Process a PIL image for use in a PyTorch model
 def process_image(image):
     ''' Scales, crops, and normalizes a PIL image for a PyTorch model,
         returns an Numpy array
     '''
-    max_size = 256
-    image = Image.open(img_path).convert('RGB')
+    # Open the image
+    from PIL import Image
+    img = Image.open(image)
     
-    # large images will slow down processing
-    if max(image.size) > max_size:
-        size = max_size
+    # Resize
+    if img.size[0] > img.size[1]:
+        img.thumbnail((10000, 256))
     else:
-        size = max(image.size)
+        img.thumbnail((256, 10000))
     
-    if shape is not None:
-        size = shape
-        
-    in_transform = transforms.Compose([
-                        transforms.Resize(size),
-                        transforms.ToTensor(),
-                        transforms.Normalize((0.485, 0.456, 0.406), 
-                                             (0.229, 0.224, 0.225))])
-
-    # discard the transparent, alpha channel (that's the :3) and add the batch dimension
-    image = in_transform(image)[:3,:,:].unsqueeze(0)
+    # Crop 
+    left_margin = (img.width-224)/2
+    bottom_margin = (img.height-224)/2
+    right_margin = left_margin + 224
+    top_margin = bottom_margin + 224
+    img = img.crop((left_margin, bottom_margin, right_margin, top_margin))
+    
+    # Normalize
+    img = np.array(img)/255
+    mean = np.array([0.485, 0.456, 0.406]) #provided mean
+    std = np.array([0.229, 0.224, 0.225]) #provided std
+    img = (img - mean)/std
+    
+    # Move color channels to first dimension as expected by PyTorch
+    img = img.transpose((2, 0, 1))
     
     return img
 
@@ -318,9 +289,13 @@ def imshow(image, ax=None, title=None):
     if ax is None:
         fig, ax = plt.subplots()
     
+    if title:
+        plt.title(title)
+    
     # PyTorch tensors assume the color channel is the first dimension
     # but matplotlib assumes is the third dimension
-    image = image.numpy().transpose((1, 2, 0))
+#     image = image.numpy().transpose((1, 2, 0))
+    image = image.transpose((1, 2, 0))
     
     # Undo preprocessing
     mean = np.array([0.485, 0.456, 0.406])
@@ -334,46 +309,54 @@ def imshow(image, ax=None, title=None):
     
     return ax
 
+_= imshow(process_image('image_sample.jpg'))
+
+# Class Prediction
 def predict(image_path, model, topk=5):
     ''' Predict the class (or classes) of an image using a trained deep learning model.
     '''
-    
     # TODO: Implement the code to predict the class from an image file
-    labels = cat_to_name.json
-    gpu_available = torch.cuda.is_available()
-    probs, classes = predict.predict(image=image_path, checkpoint=model, labels=labels, gpu=gpu_available)
-    return probs, classes
-
+    # Process image
+    img = process_image(image_path)
+    
+    # Numpy -> Tensor
+    image_tensor = torch.from_numpy(img).type(torch.FloatTensor)
+    # Add batch of size 1 to image
+    model_input = image_tensor.unsqueeze(0)
+    
+    # Probs
+    probs = torch.exp(model.forward(model_input))
+    
+    # Top probs
+    top_probs, top_labs = probs.topk(topk)
+    top_probs = top_probs.detach().numpy().tolist()[0] 
+    top_labs = top_labs.detach().numpy().tolist()[0]
+    
+    # Convert indices to classes
+    idx_to_class = {val: key for key, val in model.class_to_idx.items()}
+    top_labels = [idx_to_class[lab] for lab in top_labs]
+    top_flowers = [cat_to_name[idx_to_class[lab]] for lab in top_labs]
+    return top_probs, top_labels, top_flowers
 
 # Sanity Checking
+# TODO: Display an image along with the top 5 classes
+def plot_solution(image_path, model):
+    # Set up plot
+    plt.figure(figsize = (6,10))
+    ax = plt.subplot(2,1,1)
+    # Set up title
+#     flower_num = image_path.split('/')[1]
+#     title_ = label_map[flower_num]
 
-topk_probs, topk_classes = predict(image='sample_img.jpg', checkpoint='my_model.pt')
-label = topk_probs[0]
-prob = topk_classes[0]
+    # Plot flower
+    img = process_image(image_path)
+    imshow(img, ax);
+    
+    # Make prediction
+    probs, labs, flowers = predict(image_path, model) 
+    # Plot bar chart
+    plt.subplot(2,1,2)
+    sns.barplot(x=probs, y=flowers, color=sns.color_palette()[0]);
+    plt.show()
 
-print(f'Flower      : {cat_to_name[label]}')
-print(f'Label       : {label}')
-print(f'Probability : {prob*100:.2f}%')
-
-print(f'\nTop K\n---------------------------------')
-
-for i in range(len(top_prob)):
-    print(f"{cat_to_name[top_classes[i]]:<25} {top_prob[i]*100:.2f}%")
-
-
-# Another display an image with topk classes
-img = mpimg.imread('sample_img.jpg')
-
-f, axarr = plt.subplots(2,1)
-
-axarr[0].imshow(img)
-axarr[0].set_title('hard-leaved pocket orchid')
-
-probs, classes = predict(image='sample_img.jpg', checkpoint='my_model.pt')
-y_pos = np.arange(len(classes))
-
-axarr[1].barh(y_pos, probs, align='center', color='blue')
-axarr[1].set_yticks(y_pos)
-axarr[1].set_yticklabels(classes)
-axarr[1].invert_yaxis()  # labels read top-to-bottom
-_ = axarr[1].set_xlabel('Probs')
+plot_solution('image_sample.jpg', model_load)
