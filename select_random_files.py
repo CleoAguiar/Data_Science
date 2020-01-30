@@ -8,10 +8,10 @@ import os
 import random
 import zipfile
 
-number_files = 10
+number_files = 1500
 
-files_list = os.listdir()
-random.shuffle(files_list[:-1])
+files_list = os.listdir()[:-1]
+random.shuffle(files_list)
 
 with zipfile.ZipFile('random_files.zip', 'w') as new_zip:
    for name in files_list[:number_files]:
